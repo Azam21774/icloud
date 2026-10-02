@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Event System"
+description = "Manage invitees, configure event details, connect to iCloud Calendar via CalDAV, and monitor invitation campaigns with honest processing status."
+version = "1.0.0"
+id = "artifacts/icloud-invitations"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18994
+
+[services.development]
+run = "pnpm --filter @workspace/icloud-invitations run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/icloud-invitations", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/icloud-invitations/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18994"
+BASE_PATH = "/"

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "campaigns_one_active_per_owner" ON "campaigns" USING btree ("owner_id") WHERE "campaigns"."status" in ('queued', 'running', 'paused');

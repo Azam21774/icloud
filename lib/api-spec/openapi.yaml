@@ -1,0 +1,677 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: dashboard
+    description: Recipient readiness and active send status
+  - name: recipients
+    description: Recipient management
+  - name: settings
+    description: iCloud connection and event configuration
+  - name: invitationSends
+    description: One-time invitation sending
+  - name: logs
+    description: Processing activity
+  - name: auth
+    description: Username and password authentication
+  - name: admin
+    description: Admin-only account management
+paths:
+  /auth/status:
+    get:
+      operationId: getAuthStatus
+      tags: [auth]
+      summary: Get current sign-in and first-admin setup status
+      responses:
+        "200":
+          description: Current sign-in status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in with an admin-created username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Invalid credentials
+        "429":
+          description: Too many attempts
+  /auth/setup:
+    post:
+      operationId: setupAdmin
+      tags: [auth]
+      summary: Create the one-time initial admin account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSetupInput"
+      responses:
+        "201":
+          description: Initial admin account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400":
+          description: Setup token or credentials are invalid
+        "409":
+          description: Initial admin is already set up
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Sign out the current user
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResult"
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List users for the administrator
+      responses:
+        "200":
+          description: User accounts, without credentials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+    post:
+      operationId: createAdminUser
+      tags: [admin]
+      summary: Create an isolated user account with a generated one-time password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserInput"
+      responses:
+        "201":
+          description: User account created; password is returned only once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserCreation"
+        "409":
+          description: Username is already in use
+  /admin/users/{id}/password:
+    post:
+      operationId: resetUserPassword
+      tags: [admin]
+      summary: Generate a replacement password and revoke the user's existing sessions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Password replaced; generated password is returned only once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetResult"
+        "404":
+          description: User not found
+  /admin/users/{id}:
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Permanently delete a user and the user's workspace data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: User and workspace data permanently deleted
+        "404":
+          description: User not found
+        "409":
+          description: The user's invitation send is still processing
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get recipient counts and active one-time send progress
+      responses:
+        "200":
+          description: Dashboard overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardOverview"
+  /recipients:
+    get:
+      operationId: listRecipients
+      tags: [recipients]
+      summary: List recipients
+      responses:
+        "200":
+          description: Recipient list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recipient"
+    post:
+      operationId: addRecipients
+      tags: [recipients]
+      summary: Add one or more recipients
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipientsInput"
+      responses:
+        "201":
+          description: Recipient import results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipientImportResult"
+  /recipients/import:
+    post:
+      operationId: importRecipients
+      tags: [recipients]
+      summary: Import parsed CSV rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipientsInput"
+      responses:
+        "201":
+          description: Recipient import results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipientImportResult"
+  /recipients/{id}:
+    delete:
+      operationId: deleteRecipient
+      tags: [recipients]
+      summary: Delete a recipient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Recipient deleted
+        "404":
+          description: Recipient not found
+  /recipients/clear:
+    delete:
+      operationId: clearRecipients
+      tags: [recipients]
+      summary: Clear all recipients
+      responses:
+        "200":
+          description: Number of deleted recipients
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearResult"
+  /event-settings:
+    get:
+      operationId: getEventSettings
+      tags: [settings]
+      summary: Get event defaults
+      responses:
+        "200":
+          description: Event settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSettings"
+    put:
+      operationId: updateEventSettings
+      tags: [settings]
+      summary: Save event defaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSettingsInput"
+      responses:
+        "200":
+          description: Saved event settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSettings"
+  /icloud-settings:
+    get:
+      operationId: getIcloudSettings
+      tags: [settings]
+      summary: Get saved iCloud connection metadata
+      responses:
+        "200":
+          description: iCloud connection state; never includes the password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ICloudSettings"
+    put:
+      operationId: saveIcloudSettings
+      tags: [settings]
+      summary: Save iCloud credentials and selected calendar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ICloudSettingsInput"
+      responses:
+        "200":
+          description: Saved connection metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ICloudSettings"
+    delete:
+      operationId: deleteIcloudCredentials
+      tags: [settings]
+      summary: Remove saved iCloud credentials
+      responses:
+        "200":
+          description: Credentials removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ICloudSettings"
+  /icloud-settings/test:
+    post:
+      operationId: testIcloudConnection
+      tags: [settings]
+      summary: Test CalDAV credentials and discover calendars
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestICloudConnectionInput"
+      responses:
+        "200":
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ICloudConnectionTest"
+  /invitation-sends:
+    post:
+      operationId: sendInvitations
+      tags: [invitationSends]
+      summary: Send one invitation run to current valid recipients
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendInvitationsInput"
+      responses:
+        "202":
+          description: One-time send queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationSend"
+  /invitation-sends/{id}/stop:
+    post:
+      operationId: stopInvitationSend
+      tags: [invitationSends]
+      summary: Stop a running one-time send
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204":
+          description: Send stopped; an event already being saved may finish
+        "404":
+          description: Send not found
+        "409":
+          description: Send is no longer running
+  /invitation-sends/events:
+    get:
+      operationId: streamInvitationSendEvents
+      tags: [invitationSends]
+      summary: Stream one-time send progress using server-sent events
+      responses:
+        "200":
+          description: Server-sent invitation progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /logs:
+    get:
+      operationId: listLogs
+      tags: [logs]
+      summary: List recent invitation and recipient activity
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityLog"
+components:
+  schemas:
+    AuthUser:
+      type: object
+      required: [id, username, role]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        role:
+          type: string
+          enum: [admin, user]
+    AuthStatus:
+      type: object
+      required: [setupRequired, setupEnabled, user]
+      properties:
+        setupRequired: { type: boolean }
+        setupEnabled: { type: boolean }
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    AuthSession:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: "^[A-Za-z0-9._-]+$"
+        password: { type: string, minLength: 1, maxLength: 128 }
+    AdminSetupInput:
+      type: object
+      required: [username, password, bootstrapToken]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: "^[A-Za-z0-9._-]+$"
+        password: { type: string, minLength: 12, maxLength: 128 }
+        bootstrapToken: { type: string, minLength: 32, maxLength: 256 }
+    LogoutResult:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+    AdminUser:
+      type: object
+      required: [id, username, createdAt, lastLoginAt]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastLoginAt: { type: ["string", "null"], format: date-time }
+    AdminUserCreation:
+      type: object
+      required: [id, username, createdAt, lastLoginAt, generatedPassword]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastLoginAt: { type: ["string", "null"], format: date-time }
+        generatedPassword:
+          type: string
+          description: One-time password returned only in this response; it is never stored in readable form.
+    AdminUserInput:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: "^[A-Za-z0-9._-]+$"
+    PasswordResetResult:
+      type: object
+      required: [success, sessionsRevoked, generatedPassword]
+      properties:
+        success: { type: boolean }
+        sessionsRevoked: { type: integer }
+        generatedPassword:
+          type: string
+          description: One-time replacement password returned only in this response.
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Recipient:
+      type: object
+      required: [id, email, name, status, createdAt]
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        name: { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [valid, invalid, pending, event-created, invitation-processing, invitation-processed, invitation-failed]
+        createdAt: { type: string, format: date-time }
+    RecipientInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, maxLength: 320 }
+        name: { type: ["string", "null"], maxLength: 200 }
+    RecipientsInput:
+      type: object
+      required: [recipients]
+      properties:
+        recipients:
+          type: array
+          maxItems: 5000
+          items:
+            $ref: "#/components/schemas/RecipientInput"
+    RecipientImportResult:
+      type: object
+      required: [added, duplicates, invalid, total]
+      properties:
+        added: { type: integer }
+        duplicates: { type: integer }
+        invalid: { type: integer }
+        total: { type: integer }
+    ClearResult:
+      type: object
+      required: [deleted]
+      properties:
+        deleted: { type: integer }
+    EventSettings:
+      type: object
+      required: [title, location, url, note, inviteAsAttendees, inviteesPerEvent, timezone, durationMinutes, minimumLeadMinutes, automaticTimeSelection, startAt]
+      properties:
+        title: { type: string }
+        location: { type: string }
+        url: { type: string }
+        note: { type: string }
+        inviteAsAttendees: { type: boolean }
+        inviteesPerEvent: { type: integer, minimum: 1, maximum: 5000 }
+        timezone: { type: string }
+        durationMinutes: { type: integer }
+        minimumLeadMinutes: { type: integer }
+        automaticTimeSelection: { type: boolean }
+        startAt: { type: ["string", "null"], format: date-time }
+    EventSettingsInput:
+      type: object
+      required: [title, location, url, note, inviteAsAttendees, inviteesPerEvent, timezone, durationMinutes, minimumLeadMinutes, automaticTimeSelection, startAt]
+      properties:
+        title: { type: string, maxLength: 200 }
+        location: { type: string, maxLength: 300 }
+        url: { type: string, maxLength: 2000 }
+        note: { type: string, maxLength: 5000 }
+        inviteAsAttendees: { type: boolean }
+        inviteesPerEvent: { type: integer, minimum: 1, maximum: 5000 }
+        timezone: { type: string, maxLength: 100 }
+        durationMinutes: { type: integer, minimum: 5, maximum: 1440 }
+        minimumLeadMinutes: { type: integer, minimum: 15, maximum: 10080 }
+        automaticTimeSelection: { type: boolean }
+        startAt: { type: ["string", "null"], format: date-time }
+    CalendarOption:
+      type: object
+      required: [href, name]
+      properties:
+        href: { type: string }
+        name: { type: string }
+        description: { type: string }
+    ICloudSettings:
+      type: object
+      required: [email, calendarName, timezone, status, hasStoredPassword, calendars, invitationMode]
+      properties:
+        email: { type: string }
+        calendarName: { type: string }
+        timezone: { type: string }
+        status:
+          type: string
+          enum: [not-connected, connected, authentication-failed, calendar-unavailable]
+        hasStoredPassword: { type: boolean }
+        invitationMode:
+          type: string
+          enum: [caldav-scheduling, calendar-only]
+        calendars:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarOption" }
+    ICloudSettingsInput:
+      type: object
+      required: [email, calendarName, timezone]
+      properties:
+        email: { type: string, format: email }
+        appPassword: { type: string, minLength: 1, maxLength: 100 }
+        calendarName: { type: string, minLength: 1, maxLength: 200 }
+        calendarHref: { type: string, minLength: 1, maxLength: 2000 }
+        timezone: { type: string, minLength: 1, maxLength: 100 }
+    TestICloudConnectionInput:
+      type: object
+      required: [email, appPassword]
+      properties:
+        email: { type: string, format: email }
+        appPassword: { type: string, minLength: 1, maxLength: 100 }
+    ICloudConnectionTest:
+      type: object
+      required: [status, calendars, invitationMode, message]
+      properties:
+        status:
+          type: string
+          enum: [connected, authentication-failed, calendar-unavailable, server-unavailable]
+        calendars:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarOption" }
+        invitationMode:
+          type: string
+          enum: [caldav-scheduling, calendar-only]
+        message: { type: string }
+    DashboardOverview:
+      type: object
+      required: [totalRecipients, validRecipients, invalidRecipients, activeSend]
+      properties:
+        totalRecipients: { type: integer }
+        validRecipients: { type: integer }
+        invalidRecipients: { type: integer }
+        activeSend:
+          oneOf:
+            - $ref: "#/components/schemas/InvitationSend"
+            - type: "null"
+    InvitationSend:
+      type: object
+      required: [id, status, total, eventsSaved, sent, failed, pending, createdAt]
+      properties:
+        id: { type: integer }
+        status:
+          type: string
+          enum: [queued, running, paused]
+        total: { type: integer }
+        eventsSaved: { type: integer }
+        sent: { type: integer }
+        failed: { type: integer }
+        pending: { type: integer }
+        createdAt: { type: string, format: date-time }
+    SendInvitationsInput:
+      type: object
+      required: [confirmed]
+      properties:
+        confirmed: { type: boolean, const: true }
+    ActivityLog:
+      type: object
+      required: [id, level, event, message, createdAt]
+      properties:
+        id: { type: integer }
+        level:
+          type: string
+          enum: [info, warning, error]
+        event: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+
